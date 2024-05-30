@@ -1,12 +1,14 @@
 #handles input and maintains current game information
 
 import pygame as p
-import ChessEngine
+import ChessEngine , ChessAI
 import asyncio
 
 WIDTH = HEIGHT = 512    
 DIMENSION = 8
 SQ_SIZE = HEIGHT // DIMENSION
+MOVE_LOG_PANEL_HEIGHT = 512
+MOVE_LOG_PANEL_WIDTH = 250
 
 MAX_FPS = 15 #animation
 
@@ -21,7 +23,7 @@ def loadImages():
 
 async def main():
     p.init()
-    screen = p.display.set_mode((WIDTH , HEIGHT))
+    screen = p.display.set_mode((WIDTH  + MOVE_LOG_PANEL_WIDTH, HEIGHT))
     clock = p.time.Clock()
     screen.fill(p.Color("white"))
     gs = ChessEngine.GameState()
@@ -33,17 +35,22 @@ async def main():
     sqSelected = () #keeps track of the last click of the user (tuple)
     playerClicks = [] # keeps track of the player clicks
     gameOver = False
+    moveLogFont = p.font.SysFont("Arial" , 15 ,False , False)
+    playerOne = True #true if player is human and white , if AI is white then false
+    playerTwo = False #true if player is human and black , if AI is black then false
 
     while running:
+
+        humanTurn = (gs.whiteToMove and playerOne) or (not gs.whiteToMove and playerTwo)
         for e in p.event.get():
             if e.type == p.quit:
                 running = False
             elif e.type == p.MOUSEBUTTONDOWN:
-                if not gameOver:
+                if not gameOver and humanTurn:
                     location = p.mouse.get_pos() #(x,y) co-ordinate location of mouse
                     col = location[0]//SQ_SIZE
                     row = location[1]//SQ_SIZE
-                    if sqSelected == (row,col): # if the user clicked the same square twice
+                    if sqSelected == (row,col) or col >=8: # if the user clicked the same square twice or the move Log
                         sqSelected = ()
                         playerClicks = [] #don't do anything
                     else :
@@ -51,7 +58,7 @@ async def main():
                         playerClicks.append(sqSelected)#append both the clicks (it takes two clicks to play a move)
                     if len(playerClicks) == 2: #after the second click
                         move = ChessEngine.Move(playerClicks[0] , playerClicks[1] , gs.board )
-                        print(move.getChessNotation())
+                        #print(move.getChessNotation())
                         for i in range(len(validMoves)):
                             if move == validMoves[i]:
                                 gs.makeMove(validMoves[i])
@@ -68,6 +75,7 @@ async def main():
                     gs.undoMove()
                     moveMade = True
                     animate = False
+                    gameOver = False
                 elif e.key == p.K_e:  # when 'e' is pressed
                     running = False 
                 if e.key == p.K_r:
@@ -75,8 +83,19 @@ async def main():
                     validMoves = gs.getValidMoves()
                     sqSelected= ()
                     playerClicks = []
+                    gameOver = False
                     moveMade = False
                     animate = False
+
+#AI Logic
+
+        if not gameOver and not humanTurn:
+            AIMove = ChessAI.findBestMove(gs , validMoves)
+            if AIMove is None:
+                AIMove = ChessAI.findRandomMove(validMoves)
+            gs.makeMove(AIMove)
+            moveMade = True
+            animate = True
         
         if moveMade :
             if animate:
@@ -85,7 +104,7 @@ async def main():
             moveMade = False
             animate = False
 
-        drawGameState(screen , gs , validMoves , sqSelected)
+        drawGameState(screen , gs , validMoves , sqSelected, moveLogFont)
 
         if gs.checkMate:
             gameOver = True
@@ -118,10 +137,11 @@ def highlightSquares(screen,gs,validMoves,sqSelected):
                     screen.blit(s,(move.endCol*SQ_SIZE , move.endRow*SQ_SIZE))
 
 
-def drawGameState(screen , gs , validMoves , sqSelected):
+def drawGameState(screen , gs , validMoves , sqSelected , moveLogFont):
     drawBoard(screen)
     highlightSquares(screen , gs , validMoves , sqSelected)
     drawPieces(screen , gs.board)
+    drawMoveLog(screen , gs , moveLogFont)
 
 def drawBoard(screen):
     colors = [p.Color(129, 182, 76) , p.Color(246, 255, 227)]
@@ -167,6 +187,36 @@ def drawPieces(screen , board):
             piece = board[r][c]
             if piece != "--":
                 screen.blit(Images[piece] , p.Rect(c*SQ_SIZE , r*SQ_SIZE , SQ_SIZE , SQ_SIZE))
+
+def drawMoveLog(screen, gs, font):
+    
+    
+    move_log_rect = p.Rect(WIDTH, 0, MOVE_LOG_PANEL_WIDTH, MOVE_LOG_PANEL_HEIGHT)
+    p.draw.rect(screen, p.Color('black'), move_log_rect)
+    move_log = gs.moveLog
+    move_texts = []
+
+    for i in range(0, len(move_log), 2):
+        move_string = str(i // 2 + 1) + '. ' + str(move_log[i]) + " "
+        if i + 1 < len(move_log):
+            move_string += str(move_log[i + 1]) + "  "
+        move_texts.append(move_string)
+
+    moves_per_row = 3
+    padding = 5
+    line_spacing = 2
+    text_y = padding
+
+    for i in range(0, len(move_texts), moves_per_row):
+        text = ""
+        for j in range(moves_per_row):
+            if i + j < len(move_texts):
+                text += move_texts[i + j]
+
+        text_object = font.render(text, True, p.Color('white'))
+        text_location = move_log_rect.move(padding, text_y)
+        screen.blit(text_object, text_location)
+        text_y += text_object.get_height() + line_spacing
 
 asyncio.run(main())
 

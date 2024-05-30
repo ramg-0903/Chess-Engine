@@ -24,6 +24,7 @@ class GameState():
         self.checkMate = False
         self.staleMate = False
         self.enpassant = () #coordinates of the squares where this is possibile
+        self.enpassantPossibleLog = [self.enpassant]
         self.currentCastlingRights = CastleRights(True , True , True , True)
         self.castleRightsLog = [CastleRights(self.currentCastlingRights.wks,  self.currentCastlingRights.bks,
                                              self.currentCastlingRights.wqs , self.currentCastlingRights.bqs )]
@@ -52,6 +53,8 @@ class GameState():
             self.enpassant = ((move.startRow + move.endRow)//2 , move.startCol)
         else:
             self.enpassant = ()
+
+        self.enpassantPossibleLog.append(self.enpassant)
 
         #updating castle rights
         self.updateCastleRights(move)
@@ -85,7 +88,9 @@ class GameState():
             if move.isEnpassantMove:
                 self.board[move.endRow][move.endCol] = '--' #leaving the landing square blank
                 self.board[move.startRow][move.endCol] = move.pieceCaptured
-                self.enpassant = (move.endRow , move.endCol)
+
+            self.enpassantPossibleLog.pop()
+            self.enpassant = self.enpassantPossibleLog[-1]     
 
             #undo the 2 square pawn advance
             if move.pieceMoved[1] == 'p' and abs(move.startRow - move.endRow) == 2:
@@ -106,6 +111,8 @@ class GameState():
                     self.board[move.endRow][move.endCol - 2] = self.board[move.endRow][move.endCol + 1]
                     self.board[move.endRow][move.endCol + 1] = '--'
 
+        self.checkMate = False
+        self.staleMate = False
             
 
 
@@ -391,6 +398,7 @@ class Move():
         #castling
         self.isCastleMove = isCastleMove
         
+        self.isCapture = self.pieceCaptured != '--'
         self.moveId = self.startRow * 1000 + self.startCol * 100 + self.endRow*10 + self.endCol
         
 
@@ -399,6 +407,28 @@ class Move():
         if isinstance(other , Move):
             return self.moveId == other.moveId
         return False
+    
+    def __str__(self):
+
+        if self.isCastleMove:     #for all castle moves
+            return "o-o" if self.endCol == 6 else "O-O-O"
+        
+        endSquare = self.getRankFile(self.endRow , self.endCol)
+
+        #pawn moves
+        if self.pieceMoved[1] =='p':
+            if self.isCapture:
+                return self.colsToFiles[self.startCol] + "x" + endSquare
+            
+            else:
+                return endSquare
+            
+        
+        #piece moves
+        moveString = self.pieceMoved[1]
+        if self.isCapture:
+            moveString+= 'x'
+        return moveString + endSquare
 
     
     def getChessNotation(self):
