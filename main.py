@@ -38,7 +38,7 @@ async def main():
     moveLogFont = p.font.SysFont("Arial" , 15 ,False , False)
     playerOne = True #true if player is human and white , if AI is white then false
     playerTwo = False #true if player is human and black , if AI is black then false
-
+    moveUndone = False
     while running:
 
         humanTurn = (gs.whiteToMove and playerOne) or (not gs.whiteToMove and playerTwo)
@@ -56,7 +56,7 @@ async def main():
                     else :
                         sqSelected = (row , col)
                         playerClicks.append(sqSelected)#append both the clicks (it takes two clicks to play a move)
-                    if len(playerClicks) == 2: #after the second click
+                    if len(playerClicks) == 2 and humanTurn: #after the second click
                         move = ChessEngine.Move(playerClicks[0] , playerClicks[1] , gs.board )
                         #print(move.getChessNotation())
                         for i in range(len(validMoves)):
@@ -76,6 +76,7 @@ async def main():
                     moveMade = True
                     animate = False
                     gameOver = False
+                    moveUndone = True
                 elif e.key == p.K_e:  # when 'e' is pressed
                     running = False 
                 if e.key == p.K_r:
@@ -86,10 +87,11 @@ async def main():
                     gameOver = False
                     moveMade = False
                     animate = False
+                    moveUndone = True
 
 #AI Logic
 
-        if not gameOver and not humanTurn:
+        if not gameOver and not humanTurn and not moveUndone:
             AIMove = ChessAI.findBestMove(gs , validMoves)
             if AIMove is None:
                 AIMove = ChessAI.findRandomMove(validMoves)
@@ -103,6 +105,7 @@ async def main():
             validMoves = gs.getValidMoves()
             moveMade = False
             animate = False
+            moveUndone = False
 
         drawGameState(screen , gs , validMoves , sqSelected, moveLogFont)
 
