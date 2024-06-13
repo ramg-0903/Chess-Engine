@@ -3,6 +3,7 @@
 import pygame as p
 import ChessEngine , ChessAI
 import asyncio
+from multiprocessing import Process , Queue
 
 WIDTH = HEIGHT = 512    
 DIMENSION = 8
@@ -21,7 +22,7 @@ def loadImages():
         Images[piece] = p.transform.scale(p.image.load("images/" + piece + ".png"), (SQ_SIZE, SQ_SIZE))
 
 
-async def main():
+def main():
     p.init()
     screen = p.display.set_mode((WIDTH  + MOVE_LOG_PANEL_WIDTH, HEIGHT))
     clock = p.time.Clock()
@@ -36,17 +37,21 @@ async def main():
     playerClicks = [] # keeps track of the player clicks
     gameOver = False
     moveLogFont = p.font.SysFont("Arial" , 15 ,False , False)
-    playerOne = True #true if player is human and white , if AI is white then false
-    playerTwo = False #true if player is human and black , if AI is black then false
+    playerOne = False #true if player is human and white , if AI is white then false
+    playerTwo = True #true if player is human and black , if AI is black then false
     moveUndone = False
+    AIThinking = False
+    moveFinderProcess = None
+
     while running:
 
         humanTurn = (gs.whiteToMove and playerOne) or (not gs.whiteToMove and playerTwo)
         for e in p.event.get():
-            if e.type == p.quit:
+            if e.type == p.QUIT:
+                p.quit()
                 running = False
-            elif e.type == p.MOUSEBUTTONDOWN:
-                if not gameOver and humanTurn:
+            elif e.type == p.MOUSEBUTTONDOWN: #mouse handlers
+                if not gameOver:
                     location = p.mouse.get_pos() #(x,y) co-ordinate location of mouse
                     col = location[0]//SQ_SIZE
                     row = location[1]//SQ_SIZE
@@ -76,9 +81,13 @@ async def main():
                     moveMade = True
                     animate = False
                     gameOver = False
+                    if AIThinking:
+                        moveFinderProcess.terminate() #kills the ai process
+                        AIThinking = False
                     moveUndone = True
                 elif e.key == p.K_e:  # when 'e' is pressed
                     running = False 
+                    p.quit()
                 if e.key == p.K_r:
                     gs = ChessEngine.GameState()
                     validMoves = gs.getValidMoves()
@@ -87,17 +96,29 @@ async def main():
                     gameOver = False
                     moveMade = False
                     animate = False
+                    if AIThinking:
+                        moveFinderProcess.terminate() #kills the ai process
+                        AIThinking = False
                     moveUndone = True
 
 #AI Logic
 
         if not gameOver and not humanTurn and not moveUndone:
-            AIMove = ChessAI.findBestMove(gs , validMoves)
-            if AIMove is None:
-                AIMove = ChessAI.findRandomMove(validMoves)
-            gs.makeMove(AIMove)
-            moveMade = True
-            animate = True
+            if not AIThinking:   
+                AIThinking = True
+                returnQueue = Queue() #used for inter-thread communication and exchange of data
+                moveFinderProcess = Process(target=ChessAI.findBestMove , args=(gs , validMoves , returnQueue))
+                moveFinderProcess.start()
+
+            if not moveFinderProcess.is_alive():
+
+                AIMove = returnQueue.get() # fetches the data computed by the other thread
+                if AIMove is None:
+                    AIMove = ChessAI.findRandomMove(validMoves)
+                gs.makeMove(AIMove)
+                moveMade = True
+                animate = True
+                AIThinking = False
         
         if moveMade :
             if animate:
@@ -121,7 +142,7 @@ async def main():
 
         clock.tick(MAX_FPS)
         p.display.flip()
-        await asyncio.sleep(0)
+#        await asyncio.sleep(0)
 
     
 def highlightSquares(screen,gs,validMoves,sqSelected):
@@ -221,7 +242,9 @@ def drawMoveLog(screen, gs, font):
         screen.blit(text_object, text_location)
         text_y += text_object.get_height() + line_spacing
 
-asyncio.run(main())
+#asyncio.run(main())
+if __name__ == "__main__":
+    main()
 
 
 

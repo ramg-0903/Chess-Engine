@@ -1,7 +1,9 @@
 import random
-
+    #Material-Based Scoring
 
 pieceScore = {"K":0 , "Q":10 , "R":5 , "B":3 , "N":3 , "p":1} #King can never be captured as checkmate occurs before it
+
+    #Positional Scoring
 
 knightScores = [[0.0, 0.1, 0.2, 0.2, 0.2, 0.2, 0.1, 0.0],
                  [0.1, 0.3, 0.5, 0.5, 0.5, 0.5, 0.3, 0.1],
@@ -61,7 +63,7 @@ piecePositionScores = {"wN": knightScores,
 
 CHECKMATE = 1000
 STALEMATE = 0
-DEPTH = 3
+DEPTH = 3 #variable used to decide depth of the game tree that the AI thinks
 
 
 def scoreBoard(gs):
@@ -95,12 +97,12 @@ def scoreBoard(gs):
 def findRandomMove(validMoves):
     return validMoves[random.randint(0,len(validMoves)-1)]
 
-def findBestMove(gs , validMoves):#helper method to make the first recursive call
+def findBestMove(gs , validMoves , returnQueue):#helper method to make the first recursive call
     global nextMove
     nextMove = None
     random.shuffle(validMoves)
     findMoveNegaMaxAlphaBeta(gs , validMoves , DEPTH ,-CHECKMATE , CHECKMATE,1 if gs.whiteToMove else -1 )
-    return nextMove
+    returnQueue.put(nextMove)
 
 
 def findMoveNegaMaxAlphaBeta(gs , validMoves , depth ,alpha , beta, turnMultiplier):
